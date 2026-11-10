@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Emprende con quien encaja. DataMatch LatAm recomienda cofundadores que complementan lo que sabes, comparten tu visión y tienen tiempo para construir contigo.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<title>DataMatch LatAm</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="supabase-adapter.js"></script>
+<script src="core.js"></script>
+<script src="app.js"></script>
+<script src="admin.js"></script>
+<script>
+/* #admin abre el panel de administración; cualquier otra ruta abre la app */
+if(window.DATAMATCH_MODE === "admin" && location.hash !== "#admin") location.hash = "#admin";
+const begun = {};
+function route(){
+  const mode = location.hash === "#admin" ? "admin" : "app";
+  const mod = mode === "admin" ? Admin : App;
+  if(begun[mode]) mod.show(); else { begun[mode] = true; mod.start(); }
+  window.scrollTo(0,0);
+}
+window.addEventListener("hashchange", () => { if(location.hash === "#admin" || location.hash === "" || location.hash === "#") route(); });
+route();
+</script>
+</body>
+</html>
