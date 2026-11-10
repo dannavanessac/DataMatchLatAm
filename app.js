@@ -225,7 +225,7 @@ function vEntrar(){
       ${passField("pass","Contraseña","","current-password")}
       <p class="err" id="err"></p>
       <div class="row"><button class="btn primary" type="submit">Entrar</button><button class="btn link" type="button" data-go="registro">Crear una cuenta</button></div>
-      <p class="note">¿Olvidaste tu contraseña? Escríbele al equipo de DataMatch y te ayudamos a recuperarla.</p>
+      ${AUTH&&AUTH.resetPassword?`<button class="btn link" type="button" data-go="recuperar" style="justify-self:start">Olvidé mi contraseña</button>`:`<p class="note">¿Olvidaste tu contraseña? Escríbele al equipo de DataMatch y te ayudamos a recuperarla.</p>`}
     </form></div></div>`;
 }
 function bindEntrar(){
@@ -250,6 +250,54 @@ function bindEntrar(){
       if(r.legacy){ if(pass.length<8) return $("#err").textContent="Tu cuenta aún no tiene contraseña. Elige una de al menos 8 caracteres."; p = {...p}; await DM.localAuth.register(p, pass); put("perfiles", p); toast("Guardamos la contraseña para tu cuenta."); }
     }
     setMe(p.id); if(p.completo) go("matches"); else startOnboarding();
+  };
+}
+
+/* ---------- Recuperar contraseña ---------- */
+function vRecuperar(){
+  return `${nav()}<div class="page"><div class="narrow">
+    <div class="stack"><span class="kicker">Recuperar contraseña</span><h2>Te enviamos un enlace a tu correo</h2><p class="muted">Ábrelo desde este mismo dispositivo y podrás elegir una contraseña nueva.</p></div>
+    <form class="card" id="f" novalidate>
+      <label class="field" for="email">Tu correo<input type="email" id="email" maxlength="80" autocomplete="email"></label>
+      <p class="err" id="err"></p><p class="note" id="ok" style="color:var(--mint);font-weight:700"></p>
+      <div class="row"><button class="btn primary" type="submit">Enviar enlace</button><button class="btn link" type="button" data-go="entrar">Volver</button></div>
+    </form></div></div>`;
+}
+function bindRecuperar(){
+  $("#f").onsubmit = async e => {
+    e.preventDefault(); $("#err").textContent=""; $("#ok").textContent="";
+    const email=$("#email").value.trim().toLowerCase();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return $("#err").textContent="Revisa tu correo: parece incompleto.";
+    const b=$("#f button[type=submit]"); b.disabled=true; b.textContent="Enviando…";
+    const r = await AUTH.resetPassword(email);
+    b.disabled=false; b.textContent="Enviar enlace";
+    if(r.error) return $("#err").textContent = /rate|seconds|limit/i.test(r.error.message||"") ? "Ya enviamos un enlace hace poco. Espera unos minutos y vuelve a intentarlo." : "No pudimos enviar el enlace. Intenta de nuevo en un momento.";
+    $("#ok").textContent="Listo. Si hay una cuenta con ese correo, te llegará un enlace en unos minutos. Revisa también la carpeta de spam.";
+  };
+}
+function vNuevaClave(){
+  return `${nav()}<div class="page"><div class="narrow">
+    <div class="stack"><span class="kicker">Nueva contraseña</span><h2>Elige tu nueva contraseña</h2></div>
+    <form class="card" id="f" novalidate>
+      <div class="grid2">${passField("pass","Nueva contraseña","","new-password")}${passField("pass2","Repítela","","new-password")}</div>
+      <p class="note" style="margin-top:-8px">Mínimo 8 caracteres.</p>
+      <p class="err" id="err"></p>
+      <div class="row"><button class="btn primary" type="submit">Guardar y entrar</button></div>
+    </form></div></div>`;
+}
+function bindNuevaClave(){
+  bindPw();
+  $("#f").onsubmit = async e => {
+    e.preventDefault();
+    const pass=$("#pass").value, pass2=$("#pass2").value;
+    if(pass.length<8) return $("#err").textContent="Tu contraseña debe tener al menos 8 caracteres.";
+    if(pass!==pass2) return $("#err").textContent="Las contraseñas no coinciden.";
+    const r = await AUTH.updatePassword(pass);
+    if(r.error) return $("#err").textContent = /different|same/i.test(r.error.message||"") ? "Elige una contraseña distinta a la anterior." : "El enlace venció. Pide uno nuevo desde «Olvidé mi contraseña».";
+    AUTH.endRecovery(); try{ history.replaceState(null,"",location.pathname); }catch(e){}
+    const em = await AUTH.email(), p = em && DATA.perfiles.find(x=>x.email===em);
+    toast("Contraseña actualizada.");
+    if(p){ setMe(p.id); if(p.completo) go("matches"); else startOnboarding(); } else go("landing");
   };
 }
 
@@ -613,20 +661,22 @@ const LOGGED = ["matches","solicitudes","equipo","perfil","arquetipo"];
 function render(){
   if(location.hash==="#admin") return;
   const root = $("#root"), m = me();
-  if(m && !m.completo && view!=="onboarding" && !onb){ startOnboarding(); return; }
+  if(AUTH && AUTH.isRecovery && AUTH.isRecovery()) view = "nuevaclave";
+  if(m && !m.completo && view!=="onboarding" && view!=="nuevaclave" && !onb){ startOnboarding(); return; }
   if(LOGGED.includes(view) && !(m&&m.completo)) view = "landing";
   if(view==="onboarding" && !onb) view = m&&m.completo ? "matches" : "landing";
-  const V = {landing:[vLanding], registro:[vRegistro,bindRegistro], entrar:[vEntrar,bindEntrar], onboarding:[vOnboarding,bindOnboarding], arquetipo:[vArquetipo,bindArquetipo], matches:[vMatches,bindMatches], solicitudes:[vSolicitudes,bindSolicitudes], equipo:[vEquipo,bindEquipo], perfil:[vPerfil,bindPerfil]}[view];
+  const V = {landing:[vLanding], registro:[vRegistro,bindRegistro], entrar:[vEntrar,bindEntrar], recuperar:[vRecuperar,bindRecuperar], nuevaclave:[vNuevaClave,bindNuevaClave], onboarding:[vOnboarding,bindOnboarding], arquetipo:[vArquetipo,bindArquetipo], matches:[vMatches,bindMatches], solicitudes:[vSolicitudes,bindSolicitudes], equipo:[vEquipo,bindEquipo], perfil:[vPerfil,bindPerfil]}[view];
   root.innerHTML = V[0]();
   bindCommon(); if(V[1]) V[1]();
 }
 /* Al llegar datos nuevos solo se repinta donde no hay un formulario a medio llenar */
 function onData(){
   if(location.hash==="#admin") return;
-  const busy = dialog || ["registro","entrar","onboarding"].includes(view) || document.activeElement?.matches?.("input,textarea,select");
+  const busy = dialog || ["registro","entrar","onboarding","recuperar","nuevaclave"].includes(view) || document.activeElement?.matches?.("input,textarea,select");
   if(!busy) render(); else renderSaveState();
 }
 
+window.addEventListener("dm-recovery", () => { view = "nuevaclave"; render(); });
 window.App = {
   show(){ render(); },
   async start(){

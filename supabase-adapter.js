@@ -48,6 +48,12 @@
 
   /* Cuentas con contraseña (Supabase Auth). Administración = correos listados en config.js > ADMINS */
   let session = null;
+  /* Enlace de recuperación de contraseña: Supabase vuelve con #...type=recovery en la URL */
+  let recovery = /type=recovery/.test(location.hash);
+  if(sb) sb.auth.onAuthStateChange((ev, s) => {
+    session = s;
+    if(ev === "PASSWORD_RECOVERY"){ recovery = true; window.dispatchEvent(new Event("dm-recovery")); }
+  });
   const ready = sb ? sb.auth.getSession().then(r => { session = r.data.session; }) : Promise.resolve();
   const admins = (cfg.ADMINS || []).map(e => String(e).trim().toLowerCase());
   const isAdmin = async () => { await ready; return !!session && admins.includes((session.user?.email || "").toLowerCase()); };
@@ -56,7 +62,11 @@
     signUp: (email, password) => sb.auth.signUp({ email, password }),
     signIn: (email, password) => sb.auth.signInWithPassword({ email, password }),
     signOut: () => sb.auth.signOut(),
-    email: async () => { await ready; return session?.user?.email?.toLowerCase() || null; }
+    email: async () => { await ready; return session?.user?.email?.toLowerCase() || null; },
+    resetPassword: email => sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + "/" }),
+    updatePassword: password => sb.auth.updateUser({ password }),
+    isRecovery: () => recovery,
+    endRecovery: () => { recovery = false; }
   } : null;
   window.DMAuth = sb ? { signIn: window.DMUserAuth.signIn, signOut: window.DMUserAuth.signOut } : null;
 
